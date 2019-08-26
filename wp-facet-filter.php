@@ -22,7 +22,7 @@ add_action( 'admin_menu', 'wp_facet_filter_register_settings_page' );
 function wp_facet_filter_add_settings_section() {
     add_settings_section(
         'wp_facet_filters_target',
-        'Post Type',
+        'WP Facet Filter Options',
         'wp_facet_filter_add_settings_section_markup_callback',
         'wp_facet_filter_page'
     );
@@ -44,6 +44,20 @@ function wp_facet_filter_register_settings() {
         'wp_facet_filter_miniblog_page_id',
         $settings_args
     );
+    $faceted_post_type = get_option('wp_facet_filters_faceted_post_type');
+    $faceted_post_type_taxonomies = getPostTypeTaxonomies($faceted_post_type);
+    if ( $faceted_post_type_taxonomies ) {
+        $tax_index = 0;
+        foreach ( $faceted_post_type_taxonomies as $tax ) {
+            $tax_obj = get_taxonomy( $tax );
+            register_setting(
+                'wp_facet_filter_options',
+                'wp_facet_filters_faceted_post_tax_' . $tax_index,
+                $settings_args
+            );
+            $tax_index += 1;
+        }
+    }
 }
 // Fire on all admin pages; BP? TODO: research.
 add_action( 'admin_init', 'wp_facet_filter_register_settings' );
@@ -57,7 +71,7 @@ function wp_facet_filter_add_settings_field() {
         'wp_facet_filter_add_post_type_setting_field_markup_callback',
         'wp_facet_filter_page',
         'wp_facet_filters_target',
-        array( 'label_for' => 'myprefix_setting-id' )
+        array( 'label_for' => 'wp_face_filter_faceted_post_type' )
     );  
     $miniblog_page = get_option('wp_facet_filter_miniblog_page_id');
     add_settings_field(
@@ -66,8 +80,24 @@ function wp_facet_filter_add_settings_field() {
         'wp_facet_filter_add_miniblog_page_id_setting_field_markup_callback',
         'wp_facet_filter_page',
         'wp_facet_filters_target',
-        array( 'label_for' => 'myprefix_setting-id' )
+        array( 'label_for' => 'wp_face_filter_miniblog_page_id' )
     );  
+    $faceted_post_type_taxonomies = getPostTypeTaxonomies($faceted_post_type);
+    if ( $faceted_post_type_taxonomies ) {
+        $tax_index = 0;
+        foreach ( $faceted_post_type_taxonomies as $tax ) {
+            $tax_obj = get_taxonomy( $tax );
+            add_settings_field(
+                'wp_facet_filters_faceted_post_tax_' . $tax_index,
+                'Filter Strategy for ' . $tax_obj->label,
+                'wp_facet_filter_faceted_post_tax_markup_callback',
+                'wp_facet_filter_page',
+                'wp_facet_filters_target',
+                array( 'label_for' => 'wp_facet_filters_faceted_post_tax_' . $tax_index )
+            );
+            $tax_index += 1;
+        }
+    }
 }
 add_action('admin_init', 'wp_facet_filter_add_settings_field');
 
@@ -75,7 +105,6 @@ add_action('admin_init', 'wp_facet_filter_add_settings_field');
 function wp_facet_filter_page() {
     ?>
         <div>
-            <h2>WP Facet Filter Options</h2>
             <form action="options.php" method="post">
                 <?php settings_fields('wp_facet_filter_options'); ?>
                 <?php do_settings_sections('wp_facet_filter_page'); ?>
@@ -112,16 +141,62 @@ function wp_facet_filter_add_post_type_setting_field_markup_callback() {
 }
 
 function wp_facet_filter_add_miniblog_page_id_setting_field_markup_callback() {
-    global $pages;
+    $valid_pages = get_pages();
     $option = get_option( 'wp_facet_filter_miniblog_page_id' );
     ?>
         <select id="wp_facet_filter_miniblog_page_id" name="wp_facet_filter_miniblog_page_id" >
             <?php
-                foreach ( $$pages as $page ) {
-
-                    echo "<option>BLECH</option>";
+                foreach ( $valid_pages as $page ) {
+                    if ( $option == $page->ID ) {
+                        echo "<option selected value='" . $page->ID . "'>" . $page->post_title . "</option>";
+                    }
+                    else {
+                        echo "<option value='" . $page->ID . "'>" . $page->post_title . "</option>";
+                    }
                 } 
             ?>
+        </select>
+    <?php
+}
+function wp_facet_filter_faceted_post_tax_markup_callback( $args ) {
+    $option = get_option( $args['label_for'] );
+    ?>
+        <select id="<?php echo $args['label_for']; ?>" name="<?php echo $args['label_for']; ?>">
+        <?php if ($option == 'pick-one') {
+            ?>
+                <option selected value="pick-one">Pick One</option>
+                <option value="pick-many">Pick Many</option>
+                <option value="range">Range Select</option>
+            <?php
+        }
+        ?>
+        <?php if ($option == 'pick-many') {
+            ?>
+                <option value="pick-one">Pick One</option>
+                <option selected value="pick-many">Pick Many</option>
+                <option value="range">Range Select</option>
+            <?php
+
+        }
+        ?>
+        <?php if ($option == 'range') {
+            ?>
+                <option value="pick-one">Pick One</option>
+                <option value="pick-many">Pick Many</option>
+                <option selected value="range">Range Select</option>
+            <?php
+
+        }
+        
+        elseif ($option != 'range' && $option != 'pick-many' & $option != 'pick-one') {
+            ?>
+                <option value="pick-one">Pick One</option>
+                <option value="pick-many">Pick Many</option>
+                <option value="range">Range Select</option>
+            <?php
+
+        }
+        ?>
         </select>
     <?php
 }
